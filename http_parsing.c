@@ -23,10 +23,11 @@ void print_string(char *source, unsigned long pos_start, unsigned long len) {
 /**
  * Parse the Http Request body and return the current request end postion
  * YOU can pass the return value to the next calling to continuous parsing.
- * @param request
- * @return
+ * @param request   The HTTP request body raw string.
+ * @param start_pos The start position.
+ * @return The next parsing position.
  */
-long parse_http_body(char *request, unsigned long start_pos) {
+unsigned long parse_http_body(char *request, unsigned long start_pos) {
 
     unsigned char
         line_no = 0,        /* Line number */
@@ -35,7 +36,7 @@ long parse_http_body(char *request, unsigned long start_pos) {
 
     long body_len = 0;      /* Body length */
 
-    if (!start_pos)         /* If set the start_pos, let the request_body to be parsed was the real string */
+    if (start_pos)          /* If set the start_pos, let the request_body to be parsed was the real string */
         request = request + start_pos;
 
     unsigned long
@@ -59,7 +60,10 @@ long parse_http_body(char *request, unsigned long start_pos) {
 
             /* Return the body pos. for the next parsing.
              * Current body position was: pos + 4 + body_len */
-            return pos + 4 + body_len;
+            if (strlen(request + pos + 4) < body_len) {
+                return start_pos;
+            }
+            return pos + 4 + body_len + start_pos;
         }
 
         /* If current was in the Http header env.
@@ -140,24 +144,25 @@ long parse_http_body(char *request, unsigned long start_pos) {
         }
     }
 
-    return 0;
+    return start_pos;
 }
+
+
 
 int main(int argc, char *argv[])
 {
-    char *http_request = "OPTIONS /index.php HTTP/1.1\n"
-                         "Content-Type: application/json; charset=UTF-8\n"
-                         "Accept: image/png, image/gif, image/jpeg\n"
-                         "Set-Cookie: JSESSIONID=x83kslf38slfjwl3is8f3, max-age=258000\n"
-                         "Content-Length: 15\n"
-                         "\r\n\r\n"
-                         "a=hello&b=worldGET /index.php HTTP/1.1\nContent-Type: text/plain; charset=UTF-8\nContent-Length:15\n\r\n\r\na=helo&b=world";
+    char *http_request = "OPTIONS /index.php HTTP/1.1\nContent-Type: application/json; charset=UTF-8\nAccept: image/png, image/gif, image/jpeg\n"
+                         "Set-Cookie: JSESSIONID=x83kslf38slfjwl3is8f3, max-age=258000\nContent-Length: 15\n\r\n\r\na=hello&b=world"
+                         "GET /index.php HTTP/1.1\nContent-Type: text/plain; charset=UTF-8\nContent-Length:15\n\r\n\r\na=hello&b=world"
+                         "POST /index.php HTTP/1.1\nContent-Type: text/plain; charset=UTF-8\nContent-Length:15\n\r\n\r\na=hello&b=world"
+                         "DELETE /index.php?accid=x8flfskfji3fslkf HTTP/1.1\nContent-Type: application/json; charset=UTF-8\nContent-Length:23\n\r\n\r\n{\"name\":\"http_parsing\"}"
+                         "GET index.php HTTP/1.1\nContent-Length: 12\n\r\n\r\nabcdefghijkl";
 
-    // 解析第一个报文:
-    long pos = parse_http_body(http_request, 0);
+    unsigned long pos = 0;
 
-    // 解析第二个报文:
-    pos = parse_http_body(http_request, pos);
-
-    return 0;
+    // 循环解析报文:
+    while ( 1 ) {
+        pos = parse_http_body(http_request, pos);
+        printf("[%d]", pos);
+    }
 }
