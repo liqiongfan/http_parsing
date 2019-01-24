@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <sys/acl.h>
 #include <dirent.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <netinet/in.h>
 
 void print_string(char *source, unsigned long pos_start, unsigned long len) {
 
@@ -56,6 +59,21 @@ unsigned long parse_http_body(char *request, unsigned long start_pos) {
          * string, you should allocate the memory by youself and free it. */
         if ( '\r' == ch && '\n' == *(request + pos + 1)
             && '\r' == *(request + pos + 2) && '\n' == *(request + pos + 3)) {
+
+            /* Get the Content-Length value
+             * You must known that there is no way to store all the http header value & field, so re-check it */
+            if ( 1 <= line_no ) {
+
+                if (content_length) {
+                    /* If content-length set, get the value from it, and turn it into long value for enough
+                     * to store the length of the string. */
+                    char bnum[256] = {0};
+                    strncpy(bnum, request + line_pre_pos, line_pre_pos);
+                    body_len = strtol(bnum, 0, 10);
+                }
+            }
+
+            /* This is the http body, start from the range: [ pos + 4, body_len + pos + 4] */
             print_string(request, pos + 4, (unsigned long) body_len);
 
             /* Return the body pos. for the next parsing.
@@ -99,21 +117,11 @@ unsigned long parse_http_body(char *request, unsigned long start_pos) {
                 line_space = 0;
             }
 
-            /* Get the Content-Length value
-             * You must known that there is no way to store all the http header value & field, so re-check it */
             if ( 1 <= line_no ) {
 
                 /* HTTP Header value start from `line_pre_pos`, end by `pos - line_pre_pos`, you should clear the
                  * beginning white-space char. */
                 print_string(request, line_pre_pos, pos - line_pre_pos);
-
-                if (content_length) {
-                    /* If content-length set, get the value from it, and turn it into long value for enough
-                     * to store the length of the string. */
-                    char bnum[256] = {0};
-                    strncpy(bnum, request + line_pre_pos, line_pre_pos);
-                    body_len = strtol(bnum, 0, 10);
-                }
             }
 
             /* Increse the line_no when occur the \n char. and set the line_start_postion to the
@@ -152,11 +160,11 @@ unsigned long parse_http_body(char *request, unsigned long start_pos) {
 int main(int argc, char *argv[])
 {
     char *http_request = "OPTIONS /index.php HTTP/1.1\nContent-Type: application/json; charset=UTF-8\nAccept: image/png, image/gif, image/jpeg\n"
-                         "Set-Cookie: JSESSIONID=x83kslf38slfjwl3is8f3, max-age=258000\nContent-Length: 15\n\r\n\r\na=hello&b=world"
-                         "GET /index.php HTTP/1.1\nContent-Type: text/plain; charset=UTF-8\nContent-Length:15\n\r\n\r\na=hello&b=world"
-                         "POST /index.php HTTP/1.1\nContent-Type: text/plain; charset=UTF-8\nContent-Length:15\n\r\n\r\na=hello&b=world"
-                         "DELETE /index.php?accid=x8flfskfji3fslkf HTTP/1.1\nContent-Type: application/json; charset=UTF-8\nContent-Length:23\n\r\n\r\n{\"name\":\"http_parsing\"}"
-                         "GET index.php HTTP/1.1\nContent-Length: 12\n\r\n\r\nabcdefghijkl";
+                         "Set-Cookie: JSESSIONID=x83kslf38slfjwl3is8f3, max-age=258000\nContent-Length: 15\r\n\r\na=hello&b=world"
+                         "GET /index.php HTTP/1.1\nContent-Type: text/plain; charset=UTF-8\nContent-Length:15\r\n\r\na=hello&b=world"
+                         "POST /index.php HTTP/1.1\nContent-Type: text/plain; charset=UTF-8\nContent-Length:15\r\n\r\na=hello&b=world"
+                         "DELETE /index.php?accid=x8flfskfji3fslkf HTTP/1.1\nContent-Type: application/json; charset=UTF-8\nContent-Length:23\r\n\r\n{\"name\":\"http_parsing\"}"
+                         "GET index.php HTTP/1.1\nContent-Length: 12\r\n\r\nabcdefghijkl";
 
     unsigned long pos = 0;
 
